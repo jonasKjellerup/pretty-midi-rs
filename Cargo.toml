@@ -1,0 +1,15 @@
+[package]
+name = "pretty_midi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pretty_midi"
+crate-type = ["cdylib"]
+
+[dependencies]
+midly = "0.5"
+
+[dependencies.pyo3]
+version = "0.17"
+features = ["extension-module"]
