@@ -1,3 +1,7 @@
+#![feature(drain_filter)]
+#![feature(iter_collect_into)]
+#![feature(let_else)]
+
 /// A Rust implementation of the python library "pretty-midi".
 
 mod midi;
@@ -77,6 +81,7 @@ struct MidiObject {
     resolution: u16,
 
     tick_scale: VecDeque<(u32, f32)>,
+    instruments: Vec<midi::Instrument>,
 }
 
 #[pymethods]
@@ -92,6 +97,7 @@ impl MidiObject {
             Ok(MidiObject {
                 resolution,
                 tick_scale: VecDeque::new(),
+                instruments: vec![],
             })
         }
     }
@@ -107,10 +113,10 @@ impl MidiObject {
             .map_err(Error::from)?;
 
 
-
         Ok(MidiObject {
-            resolution,
+            resolution: 0,
             tick_scale: VecDeque::new(),
+            instruments: vec![],
         })
     }
 }
