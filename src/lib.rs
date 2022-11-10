@@ -75,7 +75,10 @@ fn pretty_midi(_: Python<'_>, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-#[pyclass(name="PrettyMIDI", sequence)]
+#[pyclass]
+struct Instrument(midi::Instrument);
+
+#[pyclass(sequence)]
 struct MidiObject {
     #[pyo3(get, set)]
     resolution: u16,

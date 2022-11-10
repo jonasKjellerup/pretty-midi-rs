@@ -3,6 +3,23 @@ use std::mem;
 use arrayvec::ArrayVec;
 use midly::{MetaMessage, MidiMessage, TrackEvent, TrackEventKind};
 
+pub trait InspectMutExt: Sized {
+    type Inner;
+    
+    fn inspect_mut<F>(self, f: F) -> Self
+        where F: FnOnce(&mut Self::Inner);
+}
+
+impl<T> InspectMutExt for Option<T> {
+    type Inner = T;
+    
+    fn inspect_mut<F>(self, f: F) -> Self
+        where F: FnOnce(&mut Self::Inner)
+    {
+        self.map(|mut v| { f(&mut v); v })
+    }
+}
+
 // Type aliases so we don't have to remember
 // the size of various MIDI fields,
 type ProgramNo = u8;
@@ -65,19 +82,20 @@ struct ChannelState {
     active_notes: ArrayVec<Vec<(MidiTime, Velocity)>, 128>,
     current_program: ProgramNo,
 
-    straggler_notes: Option<Instrument>,
-    instruments: HashMap<ProgramNo, Instrument>,
+    straggler_notes: Option<Box<Instrument>>,
+    instruments: HashMap<ProgramNo, Box<Instrument>>,
 }
 
 impl ChannelState {
 
     fn create_instrument(&mut self, program: ProgramNo) -> &mut Instrument {
         self.straggler_notes.take()
-            .or_else(|| Some(Instrument::new(program)))
+            .or_else(|| Some(Box::new(Instrument::new(program))))
             .and_then(|instrument| {
                 self.instruments.insert(program, instrument);
                 self.instruments.get_mut(&program)
             })
+            .map(|v| v.as_mut())
             .unwrap()
     }
 
@@ -100,7 +118,7 @@ impl ChannelState {
                     // We create an instrument for storing straggler notes
                     // if one does exists and an instrument for the current program
                     // also does not exist.
-                    self.straggler_notes = Some(Instrument::new(0));
+                    self.straggler_notes = Some(Box::new(Instrument::new(0)));
                     self.straggler_notes.as_mut()
                 })
                 .unwrap()
