@@ -1,27 +1,28 @@
+#[cfg(test)]
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::mem;
 use arrayvec::ArrayVec;
 use midly::{MetaMessage, MidiMessage, TrackEvent, TrackEventKind};
 
+#[cfg(test)]
+mod test;
+
 pub trait InspectMutExt: Sized {
     type Inner;
     
-    fn inspect_mut<F>(self, f: F) -> Self
-        where F: FnOnce(&mut Self::Inner);
+    fn inspect_mut(self, f: impl FnOnce(&mut Self::Inner)) -> Self;
 }
 
 impl<T> InspectMutExt for Option<T> {
     type Inner = T;
     
-    fn inspect_mut<F>(self, f: F) -> Self
-        where F: FnOnce(&mut Self::Inner)
+    fn inspect_mut(self, f: impl FnOnce(&mut Self::Inner)) -> Self
     {
         self.map(|mut v| { f(&mut v); v })
     }
 }
 
-// Type aliases so we don't have to remember
-// the size of various MIDI fields,
 type ProgramNo = u8;
 type ChannelNo = u8;
 type ControlNo = u8;
@@ -33,6 +34,8 @@ type Velocity = u8;
 type MidiTime = u32;
 
 
+#[cfg_attr(test, derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, Debug)]
 struct Note {
     pitch: Pitch,
     velocity: Velocity,

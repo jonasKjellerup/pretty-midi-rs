@@ -1,6 +1,5 @@
 #![feature(drain_filter)]
 #![feature(iter_collect_into)]
-#![feature(let_else)]
 
 /// A Rust implementation of the python library "pretty-midi".
 
