@@ -1,5 +1,6 @@
 #![feature(drain_filter)]
 #![feature(iter_collect_into)]
+#![feature(type_changing_struct_update)]
 
 /// A Rust implementation of the python library "pretty-midi".
 
@@ -8,6 +9,7 @@ mod midi;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Read;
+use midi::RealTime;
 use pyo3::{
     exceptions::{PyBaseException, PyIOError},
     prelude::*,
@@ -75,7 +77,7 @@ fn pretty_midi(_: Python<'_>, m: &PyModule) -> PyResult<()> {
 }
 
 #[pyclass]
-struct Instrument(midi::Instrument);
+struct Instrument(midi::Instrument<RealTime>);
 
 #[pyclass(sequence)]
 struct MidiObject {
@@ -83,7 +85,7 @@ struct MidiObject {
     resolution: u16,
 
     tick_scale: VecDeque<(u32, f32)>,
-    instruments: Vec<midi::Instrument>,
+    instruments: Vec<midi::Instrument<RealTime>>,
 }
 
 #[pymethods]

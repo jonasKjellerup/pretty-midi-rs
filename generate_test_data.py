@@ -25,5 +25,11 @@ args = parser.parse_args().__dict__
 midi = pm.PrettyMIDI(args['input'])
 notes = [x.__dict__ for x in midi.instruments[0].notes]
 
-with open(args['output'], 'w') as f:
-    json.dump(notes, f)
+# Output notes
+#with open(args['output'], 'w') as f:
+#    json.dump(notes, f)
+
+print(midi.resolution)
+
+#with open("./scales.json", 'w') as f:
+#    json.dump(midi._tick_scales, f)
