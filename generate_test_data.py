@@ -29,7 +29,7 @@ notes = [x.__dict__ for x in midi.instruments[0].notes]
 #with open(args['output'], 'w') as f:
 #    json.dump(notes, f)
 
-print(midi.resolution)
+print(midi._tick_scales[0])
 
 #with open("./scales.json", 'w') as f:
 #    json.dump(midi._tick_scales, f)

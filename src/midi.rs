@@ -158,7 +158,7 @@ impl Instrument<TickTime> {
         
         let mut current_scale = scales
             .next()
-            .expect("There has to be atleast on scale to convert from tick time to real time.");
+            .expect("There has to be atleast one scale to convert from tick time to real time.");
 
         let mut last_end = (0, 0f32);
         let mut last = (0, 0f32);
@@ -166,11 +166,13 @@ impl Instrument<TickTime> {
             while note.start_time > current_scale.0 {
                 current_scale = scales.next().unwrap();
                 last_end = last;
+                
+                println!("update current");
             }
 
             let real_offset = last_end.1;
             let new_ticks_start = (note.start_time - last_end.0) as f32;
-            // TODO idk if it is correct to convert end time her
+            // TODO idk if it is correct to convert end time here
             let new_ticks_end = (note.end_time - last_end.0) as f32;
 
             Note::<RealTime> {
@@ -206,7 +208,9 @@ impl ChannelState {
             .unwrap()
     }
 
+    /// Gets the instrument or creates it from the straggler instrument.
     fn get_or_create_instrument_mut(&mut self, program: ProgramNo) -> &mut Instrument<TickTime> {
+        // TODO maybe look into ways of minimizing the number of lookups required (we do quite a lot)
         if self.instruments.contains_key(&program) {
             self.instruments.get_mut(&program).unwrap()
         } else {
@@ -241,7 +245,8 @@ impl ChannelState {
         if self.active_notes[key as usize].len() > 0 {
             // We move the note list out of the instrument
             // to avoid mutable double borrowing
-            let mut notes = mem::take(&mut self.current_instrument_mut().notes);
+            let instrument = &mut self.get_or_create_instrument_mut(self.current_program);
+            let mut notes = mem::take(&mut instrument.notes);
 
             self.active_notes[key as usize]
                 .drain_filter(|(start, _)| *start != time)
@@ -316,58 +321,58 @@ impl TrackState {
 
     fn apply_midi_msg(&mut self, channel: ChannelNo, msg: &MidiMessage, time: MidiTime) {
         match msg {
-            MidiMessage::ProgramChange { program } => {
+            | MidiMessage::ProgramChange { program } => {
                 self.channels[channel as usize].current_program = program.as_int()
             }
 
-            MidiMessage::NoteOn { key, vel } if vel.as_int() > 0 => self
+            | MidiMessage::NoteOn { key, vel } if vel.as_int() > 0 => self
                 .get_channel_mut(channel)
                 .note_on(time, key.as_int(), vel.as_int()),
 
-            MidiMessage::NoteOff { key, .. } | MidiMessage::NoteOn { key, .. } => {
+            | MidiMessage::NoteOff { key, .. } | MidiMessage::NoteOn { key, .. } => {
                 self.get_channel_mut(channel).note_off(time, key.as_int())
             }
 
-            MidiMessage::PitchBend {
+            | MidiMessage::PitchBend {
                 bend: midly::PitchBend(bend),
             } => self
                 .get_channel_mut(channel)
                 .pitch_bend(bend.as_int(), time),
 
-            MidiMessage::Controller { controller, value } => self
+            | MidiMessage::Controller { controller, value } => self
                 .get_channel_mut(channel)
                 .control_change(controller.as_int(), value.as_int(), time),
 
             // pretty-midi ignores these, so we do the same
-            MidiMessage::Aftertouch { .. } | MidiMessage::ChannelAftertouch { .. } => (),
+            | MidiMessage::Aftertouch { .. }
+            | MidiMessage::ChannelAftertouch { .. } => (),
         }
     }
 
     fn apply_meta_msg(&mut self, msg: &MetaMessage) {
         match msg {
-            MetaMessage::TrackName(name) => {
+            | MetaMessage::TrackName(name) => {
                 self.name = Some(String::from_utf8_lossy(name).into_owned());
             }
 
-            MetaMessage::InstrumentName(_) => {}
-
-            MetaMessage::TrackNumber(..) => {}
-            MetaMessage::Text(..) => {}
-            MetaMessage::Copyright(..) => {}
-            MetaMessage::Lyric(..) => {}
-            MetaMessage::Marker(..) => {}
-            MetaMessage::CuePoint(..) => {}
-            MetaMessage::ProgramName(..) => {}
-            MetaMessage::DeviceName(..) => {}
-            MetaMessage::MidiChannel(..) => {}
-            MetaMessage::MidiPort(..) => {}
-            MetaMessage::EndOfTrack => {}
-            MetaMessage::Tempo(..) => {}
-            MetaMessage::SmpteOffset(..) => {}
-            MetaMessage::TimeSignature(..) => {}
-            MetaMessage::KeySignature(..) => {}
-            MetaMessage::SequencerSpecific(..) => {}
-            MetaMessage::Unknown(..) => {}
+            | MetaMessage::InstrumentName(_)
+            | MetaMessage::TrackNumber(..)
+            | MetaMessage::Text(..)
+            | MetaMessage::Copyright(..)
+            | MetaMessage::Lyric(..)
+            | MetaMessage::Marker(..)
+            | MetaMessage::CuePoint(..)
+            | MetaMessage::ProgramName(..)
+            | MetaMessage::DeviceName(..)
+            | MetaMessage::MidiChannel(..)
+            | MetaMessage::MidiPort(..)
+            | MetaMessage::EndOfTrack
+            | MetaMessage::Tempo(..)
+            | MetaMessage::SmpteOffset(..)
+            | MetaMessage::TimeSignature(..)
+            | MetaMessage::KeySignature(..)
+            | MetaMessage::SequencerSpecific(..)
+            | MetaMessage::Unknown(..) => {}
         }
     }
 
@@ -469,27 +474,15 @@ impl<'l> MidiReader<'l> {
 
         let scales: Vec<_> = generate_tick_scales(&self.smf.tracks[0], DEFAULT_TICKS_PER_BEAT).into();
         
-        dbg!(self.track_state.len());
-        dbg!(self.track_state[0].instruments.len());
-        
-        self.track_state[0].channels.iter().for_each(|channel| {
-            dbg!(channel.active_notes.len());
-            channel.straggler_notes.as_ref().map(|n| {
-                dbg!(n.program);
-                dbg!(n.notes.len());
-                dbg!(&n.name);
-            });
-            dbg!(channel.instruments.len());
-            dbg!(channel.current_program);
-        });
-        
         self.track_state
             .iter_mut()
             .flat_map(|state| {
-                state
-                    .instruments
-                    .drain()
-                    .map(|(_, v)| v.to_real_time(scales.as_ref()))
+                state.channels
+                    .iter_mut()
+                    .flat_map(|channel| channel.instruments
+                        .drain()
+                        .map(|(_, v)| v.to_real_time(scales.as_ref()))
+                        )
             })
             .collect()
     }
