@@ -135,6 +135,11 @@ impl Instrument {
         NoteArr(RcLens::new(self.0.clone(), |instrument| &instrument.notes))
     }
     
+    #[getter]
+    fn program(&self) -> u8 {
+        self.0.program
+    }
+    
 }
 
 #[pyclass]
