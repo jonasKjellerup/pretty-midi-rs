@@ -1,10 +1,10 @@
 [package]
-name = "pretty_midi"
+name = "pretty_midi_rs"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "pretty_midi"
+name = "pretty_midi_rs"
 crate-type = ["cdylib"]
 
 [dependencies]

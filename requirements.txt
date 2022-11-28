@@ -2,3 +2,4 @@ setuptools-rust
 setuptools
 wheel
 pretty_midi
+maturin

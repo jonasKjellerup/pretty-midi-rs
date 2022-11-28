@@ -3,7 +3,7 @@ use midly::{MetaMessage, MidiMessage, TrackEvent, TrackEventKind};
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::mem;
+use std::mem::{self, take};
 
 #[cfg(test)]
 mod test;
@@ -28,58 +28,63 @@ impl<T> InspectMutExt for Option<T> {
 const DEFAULT_TEMPO: u16 = 50000;
 const DEFAULT_TICKS_PER_BEAT: u16 = 480;
 
-type ProgramNo = u8;
-type ChannelNo = u8;
-type ControlNo = u8;
+pub type ProgramNo = u8;
+pub type ChannelNo = u8;
+pub type ControlNo = u8;
 
-type ControlValue = u8;
-type Pitch = u8;
-type PitchBendValue = u16;
-type Velocity = u8;
-type MidiTime = u32;
+pub type ControlValue = u8;
+pub type Pitch = u8;
+pub type PitchBendValue = u16;
+pub type Velocity = u8;
+pub type MidiTime = u32;
 
+/// Abstracts over different units of time that can be used
+/// to represent the start and end times of a note.
 pub trait TimeUnit {
-    type Repr: std::fmt::Debug;
+    /// The actual underlying type that stores the time data.
+    type Repr: std::fmt::Debug + Clone;
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// Represents time as seconds.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RealTime;
 impl TimeUnit for RealTime {
     type Repr = f32;
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// Represents time as MIDI ticks.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct TickTime;
 impl TimeUnit for TickTime {
     type Repr = MidiTime;
 }
 
 #[cfg_attr(test, derive(Serialize, Deserialize))]
-#[derive(PartialEq, Eq, Debug)]
-struct Note<T: TimeUnit> {
-    pitch: Pitch,
-    velocity: Velocity,
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Note<T: TimeUnit> {
+    pub pitch: Pitch,
+    pub velocity: Velocity,
 
     #[cfg_attr(test, serde(alias = "start"))]
-    start_time: T::Repr,
+    pub start_time: T::Repr,
     #[cfg_attr(test, serde(alias = "end"))]
-    end_time: T::Repr,
+    pub end_time: T::Repr,
 }
 
-#[derive(Debug)]
-struct PitchBend {
+#[derive(Debug, Clone)]
+pub struct PitchBend {
     bend: PitchBendValue,
     time: MidiTime,
 }
 
-#[derive(Debug)]
-struct ControlChange {
+#[derive(Debug, Clone)]
+pub struct ControlChange {
     number: ControlNo,
     value: ControlValue,
     time: MidiTime,
 }
 
-type TickScale = (u32, f32);
+pub type TickScale = (u32, f32);
 
 fn as_tempo_change(event: &TrackEvent) -> Option<TickScale> {
     match event.kind {
@@ -115,13 +120,13 @@ fn generate_tick_scales(track: &midly::Track, resolution: u16) -> VecDeque<TickS
     scales
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instrument<T: TimeUnit> {
-    program: ProgramNo,
-    name: String,
-    notes: Vec<Note<T>>,
-    pitch_bends: Vec<PitchBend>,
-    control_changes: Vec<ControlChange>,
+    pub program: ProgramNo,
+    pub name: String,
+    pub notes: Vec<Note<T>>,
+    pub pitch_bends: Vec<PitchBend>,
+    pub control_changes: Vec<ControlChange>,
 }
 
 impl<T: TimeUnit> Instrument<T> {
@@ -431,18 +436,21 @@ fn get_max_tick<'l>(tracks: impl Iterator<Item = &'l midly::Track<'l>>) -> u32 {
      */
 }
 
-struct MidiReader<'l> {
+pub struct MidiReader<'l> {
     smf: &'l midly::Smf<'l>,
     track_state: Vec<TrackState>,
     track_offset: usize,
 }
 
 impl<'l> MidiReader<'l> {
-    fn new(src: &'l midly::Smf<'l>) -> Self {
+    pub fn new(src: &'l mut midly::Smf<'l>) -> Self {
         let midly::Format::Parallel = src.header.format else {
             panic!("SMF formats other than parallel (format 1) are not currently supported1");
         };
 
+        let tracks = take(&mut src.tracks);
+        src.tracks = tracks.into_iter().map(make_track_time_absolute).collect();
+        
         let track_count = src.tracks.len();
         MidiReader {
             smf: src,
